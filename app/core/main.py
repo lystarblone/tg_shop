@@ -5,7 +5,7 @@ from aiogram.client.default import DefaultBotProperties
 from app.core.config import settings
 from app.utils.logger import setup_logger
 from app.handlers import all_routers
-from app.models.db import init_models
+from aiogram.types import BotCommand
 
 async def main():
     setup_logger()
@@ -17,10 +17,23 @@ async def main():
     )
     dp = Dispatcher()
 
+    from app.models.db import init_models
+    await init_models()
+
+    commands = [
+        BotCommand(command="/start", description="Запустить бота"),
+        BotCommand(command="/catalog", description="Показать категории"),
+        BotCommand(command="/cart", description="Просмотреть корзину"),
+        BotCommand(command="/orders", description="Мои заказы"),
+        BotCommand(command="/setstatus", description="Обновить статус заказа (для админов)"),
+        BotCommand(command="/addproduct", description="Добавить товар (для админов)"),
+        BotCommand(command="/editproduct", description="Редактировать товар (для админов)"),
+    ]
+    await bot.set_my_commands(commands)
+
     for router in all_routers:
         dp.include_router(router)
 
-    await init_models()
     await dp.start_polling(bot)
 
 if __name__ == "__main__":

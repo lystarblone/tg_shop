@@ -4,7 +4,7 @@ from app.models import Category
 from app.schemas import CategoryCreate
 from typing import List
 
-async def get_all_categories(db: AsyncSession) -> List[Category]:
+async def get_all_categories(db: AsyncSession):
     result = await db.execute(select(Category))
     return result.scalars().all()
 

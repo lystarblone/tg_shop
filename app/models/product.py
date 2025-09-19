@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, String, Numeric, Text, ForeignKey, DateTime
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from app.models.db import Base
 
 
@@ -17,3 +18,4 @@ class Product(Base):
     photo_url = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    category = relationship("Category", back_populates="products")
