@@ -2,12 +2,15 @@ from aiogram import Router, types, F
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.filters import Command
 from app.services.cart_service import CartService
-from app.services.order_service import create_order
+from app.services.order_service import create_order, get_user_orders
 from app.services.product_service import get_product
+from app.services.user_service import get_or_create_user
 from app.models.db import async_session
 from app.utils.helpers import generate_order_number
 from app.schemas.order import OrderCreate, OrderItemCreate
+from app.schemas.user import UserCreate
 
 router = Router()
 cart_service = CartService()
@@ -62,6 +65,16 @@ async def process_delivery(callback: types.CallbackQuery, state: FSMContext):
 
     async with async_session() as db:
         try:
+            user_data = UserCreate(
+                telegram_id=callback.from_user.id,
+                username=callback.from_user.username or "unknown",
+                name=f"{callback.from_user.first_name or ''} {callback.from_user.last_name or ''}".strip() or None,
+                is_admin=False
+            )
+            user = await get_or_create_user(db, user_data)
+
+            user_id = user.id
+
             for product_id, quantity in cart.items():
                 product = await get_product(db, int(product_id))
                 if product:
@@ -73,7 +86,7 @@ async def process_delivery(callback: types.CallbackQuery, state: FSMContext):
                     return
 
             order_data = OrderCreate(
-                user_id=callback.from_user.id,
+                user_id=user_id,
                 delivery_address=data["delivery_address"],
                 contact_phone=data.get("contact_phone", ""),
                 items=order_items,
@@ -81,7 +94,7 @@ async def process_delivery(callback: types.CallbackQuery, state: FSMContext):
             )
             order = await create_order(db, order_data)
         except Exception as e:
-            await callback.message.answer(f"❌ Ошибка при оформлении заказа: {str(e)}")
+            await callback.message.answer(f"❌ Ошибка при оформлении заказа:\n<code>{str(e)}</code>", parse_mode="HTML")
             await callback.answer()
             await state.clear()
             return
@@ -98,3 +111,16 @@ async def process_delivery(callback: types.CallbackQuery, state: FSMContext):
     )
     await state.clear()
     await callback.answer()
+
+@router.message(Command("orders"))
+async def show_orders(message: types.Message):
+    async with async_session() as db:
+        orders = await get_user_orders(db, message.from_user.id)
+    if not orders:
+        await message.answer("📋 У вас нет заказов.")
+        return
+
+    text = "Ваши заказы:\n"
+    for o in orders:
+        text += f"Заказ #{o.id} - Статус: {o.status} - Сумма: {o.total_price} ₽\n"
+    await message.answer(text)
