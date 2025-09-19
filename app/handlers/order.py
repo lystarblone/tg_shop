@@ -103,11 +103,11 @@ async def process_delivery(callback: types.CallbackQuery, state: FSMContext):
     await cart_service.clear_cart(callback.from_user.id)
     order_number = generate_order_number(callback.from_user.id)
     await callback.message.answer(
-        f"✅ Заказ #{order_number} оформлен!\n"
+        f"✅ Заказ #{order_number} оформлен!\n\n"
         f"Имя: {data['contact_name']}\n"
         f"Телефон: {data.get('contact_phone', 'Не указан')}\n"
         f"Адрес: {data['delivery_address']}\n"
-        f"Доставка: {delivery_type}\n"
+        f"Доставка: {delivery_type}\n\n"
         f"Сумма: {total_price} ₽"
     )
     await state.clear()
@@ -125,7 +125,10 @@ async def show_orders(message: types.Message):
         await message.answer("📋 У вас нет заказов.")
         return
 
-    text = "Ваши заказы:\n"
+    text = "📦 Ваши заказы:\n\n"
     for o in orders:
-        text += f"Заказ #{o.id} - Статус: {o.status} - Сумма: {o.total_price} ₽\n"
+        text += (
+            f"Заказ #{o.id} - Статус: {o.status} - Сумма: {o.total_price} ₽\n"
+            f"{'─' * 25}\n"
+        )
     await message.answer(text)

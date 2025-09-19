@@ -8,12 +8,11 @@ router = Router()
 
 @router.message(Command("start"))
 async def cmd_start(message: types.Message):
-    await message.answer("👋 Привет!\nТы можешь просматривать товары, добавлять их в корзину и оформлять заказы.")
-
+    await message.answer("👋 Добро пожаловать!\n\nЗдесь ты можешь выбрать товары, добавить их в корзину и оформить заказ.")
     async with async_session() as db:
         categories = await get_categories(db)
         if not categories:
-            await message.answer("⚠️ Категории не найдены. Обратитесь к администратору.")
+            await message.answer("⚠️ Категории товаров временно недоступны. Пожалуйста, попробуй позже или свяжись с поддержкой.")
             return
 
     kb = InlineKeyboardBuilder()
@@ -21,4 +20,4 @@ async def cmd_start(message: types.Message):
         kb.button(text=category.name, callback_data=f"category:{category.id}")
     kb.adjust(1)
 
-    await message.answer("📋 Выбери категорию:", reply_markup=kb.as_markup())
+    await message.answer("📋 Выбери категорию товаров:", reply_markup=kb.as_markup())
