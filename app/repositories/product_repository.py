@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy import update
 from app.models import Product
 from app.schemas import ProductCreate
 from typing import List
@@ -24,3 +25,14 @@ async def create_product(db: AsyncSession, product: ProductCreate) -> Product:
     await db.commit()
     await db.refresh(db_product)
     return db_product
+
+async def update_product(db: AsyncSession, product_id: int, product_data: ProductCreate):
+    stmt = (
+        update(Product)
+        .where(Product.id == product_id)
+        .values(**product_data.dict(exclude_unset=True))
+        .execution_options(synchronize_session="fetch")
+    )
+    await db.execute(stmt)
+    await db.commit()
+    return await get_product_by_id(db, product_id)

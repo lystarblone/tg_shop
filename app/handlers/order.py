@@ -3,53 +3,78 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from app.services.cart_service import CartService
 from app.services.order_service import create_order
-from app.schemas import OrderCreate, OrderItemCreate
+from app.services.product_service import get_product
 from app.models.db import async_session
+from app.utils.helpers import generate_order_number
 
 router = Router()
 cart_service = CartService()
 
-class CheckoutForm(StatesGroup):
-    phone = State()
-    address = State()
+class OrderStates(StatesGroup):
+    waiting_for_contact = State()
+    waiting_for_address = State()
+    waiting_for_delivery = State()
 
 @router.callback_query(F.data == "checkout")
-async def start_checkout(callback: types.CallbackQuery, state: FSMContext):
-    await callback.message.answer("📱 Введите номер телефона:")
-    await state.set_state(CheckoutForm.phone)
-    await callback.answer()
-
-@router.message(CheckoutForm.phone)
-async def enter_phone(message: types.Message, state: FSMContext):
-    await state.update_data(phone=message.text)
-    await message.answer("📍 Введите адрес доставки:")
-    await state.set_state(CheckoutForm.address)
-
-@router.message(CheckoutForm.address)
-async def finish_checkout(message: types.Message, state: FSMContext):
-    data = await state.get_data()
-    phone = data["phone"]
-    address = message.text
-
-    cart = await cart_service.get_cart(message.from_user.id)
+async def process_checkout(callback: types.CallbackQuery, state: FSMContext):
+    cart = await cart_service.get_cart(callback.from_user.id)
     if not cart:
-        await message.answer("❌ Корзина пуста")
+        await callback.message.answer("🛒 Корзина пуста")
+        await callback.answer()
         return
 
-    async with async_session() as db:
-        items = [
-            OrderItemCreate(product_id=int(pid), quantity=qty)
-            for pid, qty in cart.items()
-        ]
-        order = OrderCreate(
-            user_id=message.from_user.id,
-            total_price=0.0,
-            delivery_address=address,
-            contact_phone=phone,
-            items=items,
-        )
-        new_order = await create_order(db, order)
+    await callback.message.answer("📝 Введите ваше имя:")
+    await state.set_state(OrderStates.waiting_for_contact)
+    await callback.answer()
 
-    await cart_service.clear_cart(message.from_user.id)
+@router.message(OrderStates.waiting_for_contact)
+async def process_contact(message: types.Message, state: FSMContext):
+    await state.update_data(contact_name=message.text)
+    await message.answer("📍 Введите адрес доставки:")
+    await state.set_state(OrderStates.waiting_for_address)
+
+@router.message(OrderStates.waiting_for_address)
+async def process_address(message: types.Message, state: FSMContext):
+    await state.update_data(delivery_address=message.text)
+    kb = InlineKeyboardBuilder()
+    kb.button(text="Курьер", callback_data="delivery:courier")
+    kb.button(text="Самовывоз", callback_data="delivery:pickup")
+    await message.answer("🚚 Выберите способ доставки:", reply_markup=kb.as_markup())
+    await state.set_state(OrderStates.waiting_for_delivery)
+
+@router.callback_query(F.data.startswith("delivery:"))
+async def process_delivery(callback: types.CallbackQuery, state: FSMContext):
+    delivery_type = callback.data.split(":")[1]
+    data = await state.get_data()
+    
+    cart = await cart_service.get_cart(callback.from_user.id)
+    order_items = []
+    total_price = 0.0
+
+    async with async_session() as db:
+        for product_id, quantity in cart.items():
+            product = await get_product(db, int(product_id))
+            if product:
+                order_items.append(OrderItemCreate(product_id=product.id, quantity=quantity))
+                total_price += product.price * quantity
+
+        order_data = OrderCreate(
+            user_id=callback.from_user.id,
+            delivery_address=data["delivery_address"],
+            contact_phone=data.get("contact_phone", ""),
+            items=order_items,
+            total_price=total_price
+        )
+        order = await create_order(db, order_data)
+
+    await cart_service.clear_cart(callback.from_user.id)
+    order_number = generate_order_number(callback.from_user.id)
+    await callback.message.answer(
+        f"✅ Заказ #{order_number} оформлен!\n"
+        f"Имя: {data['contact_name']}\n"
+        f"Адрес: {data['delivery_address']}\n"
+        f"Доставка: {delivery_type}\n"
+        f"Сумма: {total_price} ₽"
+    )
     await state.clear()
-    await message.answer(f"✅ Заказ №{new_order.id} оформлен!\nМы свяжемся с вами.")
+    await callback.answer()
