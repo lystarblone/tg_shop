@@ -30,11 +30,12 @@
 
 ## Технологии
 
-- Python 3.12
+- Python 3.10+
 - Aiogram 3.x (асинхронный Telegram API)
 - SQLAlchemy + AsyncPG (PostgreSQL)
 - Redis (корзина)
-- Pydantic (валидация данных)
+- Pydantic v2 (валидация данных)
+- pytest, pytest-asyncio (тестирование)
 - Logging (журналирование)
 
 ## Архитектура
@@ -123,14 +124,14 @@ OrderItems
 
 ## Настройка базы данных
 
-1. Установите PostgreSQL (если не используете Docker):
-   ```
+1. Установите PostgreSQL:
+   ```bash
    sudo apt update
    sudo apt install postgresql
    ```
 
 2. Создайте базу данных:
-   ```
+   ```bash
    sudo -u postgres psql
    CREATE DATABASE ecommerce;
    CREATE USER user WITH PASSWORD 'password';
@@ -138,7 +139,7 @@ OrderItems
    \q
    ```
 
-3. Настройте .env (см. ниже) с DATABASE_URL:
+3. Настройте `.env` с DATABASE_URL:
    ```
    DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/ecommerce
    ```
@@ -148,19 +149,19 @@ OrderItems
 ## Установка и запуск локально
 
 1. **Клонируйте репозиторий**:
-   ```
+   ```bash
    git clone <repo-url>
    cd ecommerce-bot
    ```
 
 2. **Создайте виртуальное окружение**:
-   ```
+   ```bash
    python -m venv venv
-   source venv/bin/activate  # Windows: venv\Scripts\activate
+   source venv/bin/activate
    ```
 
 3. **Установите зависимости**:
-   ```
+   ```bash
    pip install -r requirements.txt
    ```
 
@@ -173,21 +174,21 @@ OrderItems
    ADMIN_IDS=123456789,987654321
    ```
 
-5. **Запустите Redis** (если не используете Docker):
-   ```
+5. **Запустите Redis**:
+   ```bash
    sudo apt install redis-server
    redis-server
    ```
 
 6. **Запустите бот**:
-   ```
+   ```bash
    python app/core/main.py
    ```
 
 ## Запуск с Docker
 
 1. Убедитесь, что Docker и Docker Compose установлены:
-   ```
+   ```bash
    docker --version
    docker-compose --version
    ```
@@ -195,12 +196,12 @@ OrderItems
 2. Создайте `.env` (см. выше).
 
 3. Запустите:
-   ```
+   ```bash
    docker-compose up -d --build
    ```
 
 4. Проверьте логи:
-   ```
+   ```bash
    docker-compose logs -f bot
    ```
 
@@ -256,41 +257,45 @@ OrderItems
      Заказ #2 - Статус: shipped - Сумма: 15000 ₽
      ```
 
-## Доработки и известные проблемы
-
-- Админ-панель не реализована (команды /addproduct, /editproduct, /setstatus не работают).
-- В корзине нет изменения количества и удаления отдельных товаров.
-- Фото товаров не отправляются (только текст).
-- Нет unit-тестов (см. ниже пример).
-
 ## Тестирование
 
-Тесты пока отсутствуют. Пример теста для `CartService`:
+Проект включает unit-тесты для основных функций. Тесты находятся в `tests/`.
+
+### Установка зависимостей для тестов
+
+```bash
+pip install pytest pytest-asyncio fakeredis
+```
+
+### Запуск тестов
+
+```bash
+pytest tests/ -v
+```
+
+### Пример теста (`tests/test_cart_service.py`)
 
 ```python
 import pytest
-import pytest_asyncio
 from app.services.cart_service import CartService
+from unittest.mock import AsyncMock, patch
+import fakeredis.aioredis
 
-@pytest_asyncio.asyncio
+@pytest.mark.asyncio
 async def test_add_to_cart():
-    cart_service = CartService()
-    user_id = 123
-    product_id = 1
-    await cart_service.clear_cart(user_id)
-    result = await cart_service.add_item(user_id, product_id, quantity=2)
-    assert result is True
-    cart = await cart_service.get_cart(user_id)
-    assert cart == {"1": 2}
+    with patch('app.services.cart_service.aioredis.from_url', return_value=fakeredis.aioredis.FakeRedis(decode_responses=True)):
+        cart_service = CartService()
+        user_id = 123
+        product_id = 1
+        await cart_service.clear_cart(user_id)
+        result = await cart_service.add_item(user_id, product_id, quantity=2)
+        assert result is True
+        cart = await cart_service.get_cart(user_id)
+        assert cart == {"1": 2}
 ```
 
-Для запуска тестов:
-1. Установите pytest:
-   ```
-   pip install pytest pytest-asyncio
-   ```
-2. Создайте файл `tests/test_cart.py` с тестами.
-3. Запустите:
-   ```
-   pytest tests/
-   ```
+### Покрытие тестов
+
+- `test_add_to_cart`: Проверяет добавление товара в корзину.
+- `test_get_empty_cart`: Проверяет получение пустой корзины.
+- `test_add_nonexistent_product`: Проверяет обработку ошибки при добавлении несуществующего товара.

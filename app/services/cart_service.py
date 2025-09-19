@@ -1,11 +1,11 @@
 import json
 import logging
-import aioredis
+import redis.asyncio as redis
 from app.core.config import settings
 
 class CartService:
     def __init__(self):
-        self.redis = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+        self.redis = redis.from_url(settings.REDIS_URL, decode_responses=True)
 
     async def add_item(self, user_id: int, product_id: int, quantity: int = 1):
         from app.services.product_service import get_product
