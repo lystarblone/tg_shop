@@ -2,7 +2,7 @@ from aiogram import Router, types, F
 from aiogram.filters import Command
 from app.core.config import settings
 from app.services.order_service import update_order_status, get_order
-from app.core.db import async_session
+from app.models.db import async_session
 
 router = Router()
 

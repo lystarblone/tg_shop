@@ -4,7 +4,7 @@ from aiogram.fsm.state import State, StatesGroup
 from app.services.cart_service import CartService
 from app.services.order_service import create_order
 from app.schemas import OrderCreate, OrderItemCreate
-from app.core.db import async_session
+from app.models.db import async_session
 
 router = Router()
 cart_service = CartService()

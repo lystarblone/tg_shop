@@ -2,7 +2,7 @@ from aiogram import Router, types, F
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from app.services.cart_service import CartService
 from app.services.product_service import get_product
-from app.core.db import async_session
+from app.models.db import async_session
 
 router = Router()
 cart_service = CartService()
