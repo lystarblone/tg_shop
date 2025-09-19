@@ -23,7 +23,6 @@ async def init_models():
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-            Base.registry.configure()
     except Exception as e:
         print(f"Ошибка при инициализации моделей: {e}")
         raise

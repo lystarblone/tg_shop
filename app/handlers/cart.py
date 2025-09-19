@@ -1,5 +1,6 @@
 from aiogram import Router, types, F
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.filters import Command
 from app.services.cart_service import CartService
 from app.services.product_service import get_product
 from app.models.db import async_session
@@ -13,7 +14,7 @@ async def add_to_cart(callback: types.CallbackQuery):
     await cart_service.add_item(callback.from_user.id, product_id, quantity=1)
     await callback.answer("✅ Товар добавлен в корзину!")
 
-@router.message(F.text == "Корзина")
+@router.message(Command("cart"))
 async def show_cart(message: types.Message):
     cart = await cart_service.get_cart(message.from_user.id)
     if not cart:
@@ -21,17 +22,21 @@ async def show_cart(message: types.Message):
         return
 
     text = "📦 Ваша корзина:\n\n"
+    total = 0.0
     async with async_session() as db:
         for product_id, quantity in cart.items():
             product = await get_product(db, int(product_id))
             if product:
-                text += f"{product.name} × {quantity} = {product.price * quantity} ₽\n"
+                item_price = float(product.price) * quantity
+                text += f"{product.name} × {quantity} = {item_price} ₽\n"
+                total += item_price
 
     kb = InlineKeyboardBuilder()
     kb.button(text="Оформить заказ", callback_data="checkout")
     kb.button(text="Очистить корзину", callback_data="clearcart")
+    kb.adjust(1)
 
-    await message.answer(text, reply_markup=kb.as_markup())
+    await message.answer(text + f"\nИтого: {total} ₽", reply_markup=kb.as_markup())
 
 @router.callback_query(F.data == "clearcart")
 async def clear_cart(callback: types.CallbackQuery):
@@ -60,19 +65,22 @@ async def change_quantity(callback: types.CallbackQuery):
 
     cart = await cart_service.get_cart(callback.from_user.id)
     text = "📦 Ваша корзина:\n\n"
+    total = 0.0
     async with async_session() as db:
-        for product_id, quantity in cart.items():
-            product = await get_product(db, int(product_id))
-            if product:
-                text += f"{product.name} × {quantity} = {product.price * quantity} ₽\n"
+        for p_id, qty in cart.items():
+            prod = await get_product(db, int(p_id))
+            if prod:
+                item_price = float(prod.price) * qty
+                text += f"{prod.name} × {qty} = {item_price} ₽\n"
+                total += item_price
 
     kb = InlineKeyboardBuilder()
-    for product_id, quantity in cart.items():
-        kb.button(text=f"➖ {quantity} ➕", callback_data=f"changeqty:{product_id}:minus")
-        kb.button(text=f"➕", callback_data=f"changeqty:{product_id}:plus")
+    for p_id, qty in cart.items():
+        kb.button(text=f"➖ {qty} ➕", callback_data=f"changeqty:{p_id}:minus")
+        kb.button(text="➕", callback_data=f"changeqty:{p_id}:plus")
     kb.button(text="Оформить заказ", callback_data="checkout")
     kb.button(text="Очистить корзину", callback_data="clearcart")
     kb.adjust(2)
 
-    await callback.message.edit_text(text, reply_markup=kb.as_markup())
+    await callback.message.edit_text(text + f"\nИтого: {total} ₽", reply_markup=kb.as_markup())
     await callback.answer()

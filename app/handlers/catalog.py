@@ -1,11 +1,12 @@
 from aiogram import Router, types, F
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.filters import Command
 from app.services.product_service import get_categories, get_products_in_category, get_product
 from app.models.db import async_session
 
 router = Router()
 
-@router.message(F.text == "Каталог")
+@router.message(Command("catalog"))
 async def show_categories(message: types.Message):
     async with async_session() as db:
         categories = await get_categories(db)
@@ -40,9 +41,21 @@ async def show_product(callback: types.CallbackQuery):
     if product:
         kb = InlineKeyboardBuilder()
         kb.button(text="Добавить в корзину", callback_data=f"addcart:{product.id}")
-        await callback.message.answer_photo(
-            photo=product.image_url,
-            caption=f"<b>{product.name}</b>\n\n{product.description}\n\n💰 Цена: {product.price} ₽",
-            reply_markup=kb.as_markup(),
-        )
+        if product.photo_url and product.photo_url.strip():
+            try:
+                await callback.message.answer_photo(
+                    photo=product.photo_url,
+                    caption=f"<b>{product.name}</b>\n\n{product.description}\n\n💰 Цена: {product.price} ₽",
+                    reply_markup=kb.as_markup(),
+                )
+            except Exception as e:
+                await callback.message.answer(
+                    f"<b>{product.name}</b>\n\n{product.description}\n\n💰 Цена: {product.price} ₽\n\n⚠️ Ошибка загрузки фото: {str(e)}",
+                    reply_markup=kb.as_markup(),
+                )
+        else:
+            await callback.message.answer(
+                f"<b>{product.name}</b>\n\n{product.description}\n\n💰 Цена: {product.price} ₽\n\n⚠️ Фото отсутствует",
+                reply_markup=kb.as_markup(),
+            )
     await callback.answer()
