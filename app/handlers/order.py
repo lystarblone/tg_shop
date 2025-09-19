@@ -11,9 +11,11 @@ from app.models.db import async_session
 from app.utils.helpers import generate_order_number
 from app.schemas.order import OrderCreate, OrderItemCreate
 from app.schemas.user import UserCreate
+from app.repositories.user_repository import UserRepository
 
 router = Router()
 cart_service = CartService()
+user_repository = UserRepository()
 
 class OrderStates(StatesGroup):
     waiting_for_contact = State()
@@ -72,7 +74,6 @@ async def process_delivery(callback: types.CallbackQuery, state: FSMContext):
                 is_admin=False
             )
             user = await get_or_create_user(db, user_data)
-
             user_id = user.id
 
             for product_id, quantity in cart.items():
@@ -115,7 +116,11 @@ async def process_delivery(callback: types.CallbackQuery, state: FSMContext):
 @router.message(Command("orders"))
 async def show_orders(message: types.Message):
     async with async_session() as db:
-        orders = await get_user_orders(db, message.from_user.id)
+        user = await user_repository.get_user_by_telegram_id(db, message.from_user.id)
+        if not user:
+            await message.answer("📋 У вас нет заказов.")
+            return
+        orders = await get_user_orders(db, user.id)
     if not orders:
         await message.answer("📋 У вас нет заказов.")
         return

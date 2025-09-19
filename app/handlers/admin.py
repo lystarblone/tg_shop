@@ -20,7 +20,7 @@ async def set_status(message: types.Message):
     try:
         _, order_id, status = message.text.split()
     except ValueError:
-        await message.answer("❌ Формат: /setstatus <order_id> <status>")
+        await message.answer("❌ Формат: /setstatus order_id status")
         return
 
     async with async_session() as db:
@@ -42,7 +42,7 @@ async def add_product_command(message: types.Message):
         price = float(price)
         category_id = int(category_id)
     except ValueError:
-        await message.answer("❌ Формат: /addproduct <name> <price> <category_id>")
+        await message.answer("❌ Формат: /addproduct name price category_id")
         return
 
     product_data = ProductCreate(name=name, price=price, category_id=category_id)
@@ -62,7 +62,7 @@ async def edit_product_command(message: types.Message):
         price = float(price)
         category_id = int(category_id)
     except ValueError:
-        await message.answer("❌ Формат: /editproduct <product_id> <name> <price> <category_id>")
+        await message.answer("❌ Формат: /editproduct product_id name price category_id")
         return
 
     product_data = ProductCreate(name=name, price=price, category_id=category_id)
